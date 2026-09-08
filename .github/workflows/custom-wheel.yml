@@ -1,0 +1,28 @@
+name: Build custom Python wheel
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "custom-v*"
+
+permissions:
+  contents: read
+
+jobs:
+  wheel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build wheel and source distribution
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloakbrowser-python-${{ github.ref_name }}
+          path: dist/*
+          if-no-files-found: error

@@ -12,6 +12,9 @@ requires-python = ">=3.9"
 authors = [
     { name = "CloakHQ", email = "cloakhq@pm.me" },
 ]
+maintainers = [
+    { name = "thuctran63" },
+]
 keywords = [
     "stealth",
     "browser",
@@ -63,10 +66,10 @@ dev = ["pytest>=7.0", "pytest-asyncio>=0.23"]
 cloakbrowser = "cloakbrowser.__main__:main"
 
 [project.urls]
-Homepage = "https://github.com/CloakHQ/CloakBrowser"
+Homepage = "https://github.com/thuctran63/CloakBrowser"
 Documentation = "https://github.com/CloakHQ/CloakBrowser#readme"
-Repository = "https://github.com/CloakHQ/CloakBrowser"
-Issues = "https://github.com/CloakHQ/CloakBrowser/issues"
+Repository = "https://github.com/thuctran63/CloakBrowser"
+Issues = "https://github.com/thuctran63/CloakBrowser/issues"
 
 [tool.hatch.version]
 path = "cloakbrowser/_version.py"
