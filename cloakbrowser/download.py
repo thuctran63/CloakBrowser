@@ -60,8 +60,8 @@ class BinaryVerificationError(RuntimeError):
     """
 
 
-# Timeout for download (large binary, allow 10 min)
-DOWNLOAD_TIMEOUT = httpx.Timeout(connect=10.0, read=60.0, write=10.0, pool=10.0)
+# Timeout for download (large binary, allow slower mirrors/connections)
+DOWNLOAD_TIMEOUT = httpx.Timeout(connect=60.0, read=120.0, write=30.0, pool=60.0)
 
 # Auto-update check interval (1 hour)
 UPDATE_CHECK_INTERVAL = 3600
