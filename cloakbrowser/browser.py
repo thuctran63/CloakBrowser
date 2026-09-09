@@ -1717,11 +1717,10 @@ def _resolve_proxy_config(
 ) -> tuple[dict[str, Any], list[str]]:
     """Resolve proxy into Playwright kwargs and Chrome args.
 
-    SOCKS5 proxies are passed via Chrome's --proxy-server flag. HTTP/HTTPS
-    proxies always use Playwright's proxy option so credentials are supplied as
-    dedicated username/password fields. Chromium can otherwise apply the proxy
-    endpoint while still showing a native authentication dialog when userinfo is
-    embedded in --proxy-server.
+    SOCKS5 proxies are passed via Chrome's --proxy-server flag. Credentialed
+    HTTP/HTTPS proxies use inline --proxy-server authentication on binaries that
+    support it; older binaries fall back to Playwright's dedicated credential
+    fields. Unauthenticated HTTP/HTTPS proxies use Playwright's proxy option.
 
     Returns:
         (proxy_kwargs, extra_chrome_args) — one or both will be empty.
@@ -1743,8 +1742,23 @@ def _resolve_proxy_config(
         # passwords at '=' and other special chars (#157).
         return {}, [f"--proxy-server={_normalize_socks_string_url(proxy)}"]
 
-    # HTTP/HTTPS: keep credentials out of --proxy-server and let Playwright
-    # handle the HTTP 407 authentication challenge.
+    # App-mode begins its initial navigation before Playwright can reliably
+    # answer the first HTTP 407 challenge. Patched binaries accept credentials
+    # in --proxy-server and therefore authenticate that initial request inside
+    # Chromium. Older binaries must retain the Playwright fallback.
+    if _has_credentials(proxy) and binary_supports_http_proxy_inline_auth(
+        license_key, browser_version, release_channel
+    ):
+        if isinstance(proxy, dict):
+            url = _reconstruct_http_url(proxy)
+            extra_args = [f"--proxy-server={_normalize_http_string_url(url)}"]
+            bypass = proxy.get("bypass")
+            if bypass:
+                extra_args.append(f"--proxy-bypass-list={bypass}")
+            return {}, extra_args
+        return {}, [f"--proxy-server={_normalize_http_string_url(proxy)}"]
+
+    # HTTP/HTTPS fallback: let Playwright answer the 407 challenge.
     if isinstance(proxy, dict):
         return {"proxy": proxy}, []
     return {"proxy": _parse_proxy_url(proxy)}, []

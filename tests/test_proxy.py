@@ -59,14 +59,8 @@ class TestBuildProxyKwargs:
     @patch("cloakbrowser.config.get_platform_tag", return_value="linux-x64")
     def test_proxy_with_auth(self, *_):
         kwargs, args = _resolve_proxy_config("http://user:pass@proxy:8080")
-        assert kwargs == {
-            "proxy": {
-                "server": "http://proxy:8080",
-                "username": "user",
-                "password": "pass",
-            }
-        }
-        assert args == []
+        assert kwargs == {}
+        assert args == ["--proxy-server=http://user:pass@proxy:8080"]
 
     def test_proxy_dict_passthrough(self):
         proxy_dict = {"server": "http://proxy:8080", "bypass": ".google.com,localhost"}
@@ -89,18 +83,11 @@ class TestBuildProxyKwargs:
     @patch("cloakbrowser.config.get_chromium_version", return_value="146.0.7680.177.5")
     @patch("cloakbrowser.config.get_platform_tag", return_value="linux-x64")
     def test_pinned_new_version_keeps_inline_auth(self, *_):
-        # Even a binary advertising inline auth uses Playwright credentials.
         kwargs, args = _resolve_proxy_config(
             "http://user:pass@proxy:8080", browser_version="146.0.7680.177.5"
         )
-        assert kwargs == {
-            "proxy": {
-                "server": "http://proxy:8080",
-                "username": "user",
-                "password": "pass",
-            }
-        }
-        assert args == []
+        assert kwargs == {}
+        assert args == ["--proxy-server=http://user:pass@proxy:8080"]
 
     @patch("cloakbrowser.config.get_chromium_version", return_value="146.0.7680.177.5")
     @patch("cloakbrowser.config.get_platform_tag", return_value="linux-x64")
@@ -112,8 +99,11 @@ class TestBuildProxyKwargs:
             "bypass": ".example.com",
         }
         kwargs, args = _resolve_proxy_config(proxy_dict)
-        assert kwargs == {"proxy": proxy_dict}
-        assert args == []
+        assert kwargs == {}
+        assert args == [
+            "--proxy-server=http://user:pass@proxy:8080",
+            "--proxy-bypass-list=.example.com",
+        ]
 
 
 class TestMaybeResolveGeoip:
@@ -234,14 +224,8 @@ class TestBareProxyFormat:
     @patch("cloakbrowser.config.get_platform_tag", return_value="linux-x64")
     def test_resolve_proxy_config_bare(self, *_):
         kwargs, args = _resolve_proxy_config("user:pass@proxy:8080")
-        assert kwargs == {
-            "proxy": {
-                "server": "http://proxy:8080",
-                "username": "user",
-                "password": "pass",
-            }
-        }
-        assert args == []
+        assert kwargs == {}
+        assert args == ["--proxy-server=http://user:pass@proxy:8080"]
 
 
 class TestIsSocksProxy:
@@ -277,14 +261,8 @@ class TestResolveProxyConfig:
     @patch("cloakbrowser.config.get_platform_tag", return_value="linux-x64")
     def test_http_string_with_creds_returns_chrome_arg(self, *_):
         kwargs, args = _resolve_proxy_config("http://user:pass@proxy:8080")
-        assert kwargs == {
-            "proxy": {
-                "server": "http://proxy:8080",
-                "username": "user",
-                "password": "pass",
-            }
-        }
-        assert args == []
+        assert kwargs == {}
+        assert args == ["--proxy-server=http://user:pass@proxy:8080"]
 
     def test_http_string_no_creds_returns_playwright_dict(self):
         kwargs, args = _resolve_proxy_config("http://proxy:8080")
@@ -441,28 +419,22 @@ class TestResolveProxyConfig:
         _, args = _resolve_proxy_config("socks5://user:pass=1@host:0")
         assert args[0] == "--proxy-server=socks5://user:pass%3D1@host:0"
 
-    # --- HTTP with credentials → Playwright proxy fields on every platform ---
+    # --- HTTP with credentials → native inline auth on supported binaries ---
 
     @patch("cloakbrowser.config.get_chromium_version", return_value="146.0.7680.177.5")
     @patch("cloakbrowser.config.get_platform_tag", return_value="linux-x64")
     def test_http_string_with_creds_on_supported_platform(self, *_):
         kwargs, args = _resolve_proxy_config("http://user:pass@proxy:8080")
-        assert kwargs == {
-            "proxy": {
-                "server": "http://proxy:8080",
-                "username": "user",
-                "password": "pass",
-            }
-        }
-        assert args == []
+        assert kwargs == {}
+        assert args == ["--proxy-server=http://user:pass@proxy:8080"]
 
     @patch("cloakbrowser.config.get_chromium_version", return_value="146.0.7680.177.5")
     @patch("cloakbrowser.config.get_platform_tag", return_value="linux-x64")
     def test_http_dict_with_creds_on_supported_platform(self, *_):
         proxy = {"server": "http://proxy:8080", "username": "user", "password": "pass"}
         kwargs, args = _resolve_proxy_config(proxy)
-        assert kwargs == {"proxy": proxy}
-        assert args == []
+        assert kwargs == {}
+        assert args == ["--proxy-server=http://user:pass@proxy:8080"]
 
     @patch("cloakbrowser.config.get_chromium_version", return_value="146.0.7680.177.5")
     @patch("cloakbrowser.config.get_platform_tag", return_value="linux-x64")
@@ -474,35 +446,32 @@ class TestResolveProxyConfig:
             "bypass": ".google.com",
         }
         kwargs, args = _resolve_proxy_config(proxy)
-        assert kwargs == {"proxy": proxy}
-        assert args == []
+        assert kwargs == {}
+        assert args == [
+            "--proxy-server=http://user:pass@proxy:8080",
+            "--proxy-bypass-list=.google.com",
+        ]
 
     @patch("cloakbrowser.config.get_chromium_version", return_value="146.0.7680.177.5")
     @patch("cloakbrowser.config.get_platform_tag", return_value="linux-x64")
     def test_http_string_encodes_special_chars_in_password(self, *_):
         kwargs, args = _resolve_proxy_config("http://user:pass=123@proxy:8080")
-        assert kwargs["proxy"]["password"] == "pass=123"
-        assert args == []
+        assert kwargs == {}
+        assert args == ["--proxy-server=http://user:pass%3D123@proxy:8080"]
 
     @patch("cloakbrowser.config.get_chromium_version", return_value="146.0.7680.177.5")
     @patch("cloakbrowser.config.get_platform_tag", return_value="linux-x64")
     def test_http_string_encoding_idempotent(self, *_):
         kwargs, args = _resolve_proxy_config("http://user:pass%3D123@proxy:8080")
-        assert kwargs["proxy"]["password"] == "pass=123"
-        assert args == []
+        assert kwargs == {}
+        assert args == ["--proxy-server=http://user:pass%3D123@proxy:8080"]
 
     @patch("cloakbrowser.config.get_chromium_version", return_value="146.0.7680.177.5")
     @patch("cloakbrowser.config.get_platform_tag", return_value="windows-x64")
     def test_http_string_with_creds_on_windows(self, *_):
         kwargs, args = _resolve_proxy_config("http://user:pass@proxy:8080")
-        assert kwargs == {
-            "proxy": {
-                "server": "http://proxy:8080",
-                "username": "user",
-                "password": "pass",
-            }
-        }
-        assert args == []
+        assert kwargs == {}
+        assert args == ["--proxy-server=http://user:pass@proxy:8080"]
 
     # --- HTTP with credentials on binaries without inline proxy auth → fallback ---
     # Free macOS (145.x) and linux-arm64 (146.0.7680.177.3) predate the inline
@@ -531,14 +500,11 @@ class TestResolveProxyConfig:
 
     @patch("cloakbrowser.config.get_platform_tag", return_value="darwin-arm64")
     def test_http_with_creds_on_macos_inline_when_pinned_new(self, _mock):
-        # HTTP credentials remain in Playwright's dedicated fields even when
-        # the binary advertises inline authentication support.
         kwargs, args = _resolve_proxy_config(
             "http://user:pass@proxy:8080", browser_version="148.0.7778.215.3"
         )
-        assert kwargs["proxy"]["username"] == "user"
-        assert kwargs["proxy"]["password"] == "pass"
-        assert args == []
+        assert kwargs == {}
+        assert args == ["--proxy-server=http://user:pass@proxy:8080"]
 
     # --- HTTP without credentials (all platforms) ---
 
