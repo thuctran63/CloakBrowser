@@ -1717,11 +1717,11 @@ def _resolve_proxy_config(
 ) -> tuple[dict[str, Any], list[str]]:
     """Resolve proxy into Playwright kwargs and Chrome args.
 
-    Proxies with credentials (SOCKS5 always; HTTP/HTTPS only on binaries that
-    support inline proxy auth) are passed via Chrome's --proxy-server flag with
-    inline credentials, bypassing Playwright's CDP auth interceptor which breaks
-    on some proxies and Google domains (#182). HTTP/HTTPS creds on older binaries
-    fall back to Playwright's proxy dict.
+    SOCKS5 proxies are passed via Chrome's --proxy-server flag. HTTP/HTTPS
+    proxies always use Playwright's proxy option so credentials are supplied as
+    dedicated username/password fields. Chromium can otherwise apply the proxy
+    endpoint while still showing a native authentication dialog when userinfo is
+    embedded in --proxy-server.
 
     Returns:
         (proxy_kwargs, extra_chrome_args) — one or both will be empty.
@@ -1743,21 +1743,8 @@ def _resolve_proxy_config(
         # passwords at '=' and other special chars (#157).
         return {}, [f"--proxy-server={_normalize_socks_string_url(proxy)}"]
 
-    # HTTP/HTTPS with credentials, only on binaries that ship inline proxy auth:
-    # use Chrome's native proxy authentication path instead of Playwright's CDP
-    # auth interceptor (#182). Older binaries (free macOS/linux-arm64) can't parse
-    # inline credentials, so they fall through to the Playwright proxy dict below.
-    if _has_credentials(proxy) and binary_supports_http_proxy_inline_auth(license_key, browser_version, release_channel):
-        if isinstance(proxy, dict):
-            url = _reconstruct_http_url(proxy)
-            extra_args = [f"--proxy-server={url}"]
-            bypass = proxy.get("bypass")
-            if bypass:
-                extra_args.append(f"--proxy-bypass-list={bypass}")
-            return {}, extra_args
-        return {}, [f"--proxy-server={_normalize_http_string_url(proxy)}"]
-
-    # HTTP/HTTPS without credentials: use Playwright's proxy dict
+    # HTTP/HTTPS: keep credentials out of --proxy-server and let Playwright
+    # handle the HTTP 407 authentication challenge.
     if isinstance(proxy, dict):
         return {"proxy": proxy}, []
     return {"proxy": _parse_proxy_url(proxy)}, []
