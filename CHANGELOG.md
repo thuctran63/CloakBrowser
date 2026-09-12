@@ -6,6 +6,12 @@ Changes are tagged: **[wrapper]** for Python/JS wrapper, **[binary]** for Chromi
 
 ---
 
+## [0.5.12] — 2026-09-12
+
+- **[wrapper]** Allow applications that manage multiple persistent profiles to inject one caller-owned async Playwright instance. Standalone launches retain automatic driver cleanup, launch cancellation cannot leak an owned driver, and shared launches no longer create one `node.exe` per profile. Python.
+
+---
+
 ## [0.5.11] — 2026-09-10
 
 - **[wrapper]** Restore native inline authentication for credentialed HTTP/HTTPS proxies on binaries that advertise support, including Chromium `146.0.7680.177.5` on Linux x64 and Windows x64. This avoids a native authentication prompt when app mode starts navigation before Playwright can answer the first HTTP 407 challenge; older binaries retain the Playwright credential fallback. Python.

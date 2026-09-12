@@ -749,6 +749,7 @@ async def launch_persistent_context_async(
     license_key: str | None = None,
     browser_version: str | None = None,
     release_channel: str | None = None,
+    playwright: Any | None = None,
     **kwargs: Any,
 ) -> Any:
     """Async version of launch_persistent_context().
@@ -837,7 +838,8 @@ async def launch_persistent_context_async(
 
     seed_widevine_hint(user_data_dir, binary_path)
 
-    pw = await async_playwright().start()
+    owns_playwright = playwright is None
+    pw = playwright or await async_playwright().start()
     try:
         context = await pw.chromium.launch_persistent_context(
             user_data_dir=os.fspath(user_data_dir),
@@ -848,29 +850,31 @@ async def launch_persistent_context_async(
             **proxy_kwargs,
             **context_kwargs,
         )
-    except Exception as exc:
-        lic = _license_error(exc)
-        try:
-            await pw.stop()
-        except Exception as stop_exc:
-            logger.warning("Playwright cleanup after launch failure failed: %s", stop_exc)
+    except BaseException as exc:
+        lic = _license_error(exc) if isinstance(exc, Exception) else None
+        if owns_playwright:
+            try:
+                await pw.stop()
+            except Exception as stop_exc:
+                logger.warning("Playwright cleanup after launch failure failed: %s", stop_exc)
         if lic is None:
             raise
         raise lic from exc
 
-    # Patch close() to also stop the Playwright instance
-    _original_close = context.close
+    if owns_playwright:
+        # Standalone calls own their driver; injected drivers are caller-owned.
+        _original_close = context.close
 
-    async def _close_with_cleanup(*, reason: str | None = None) -> None:
-        try:
-            if reason is None:
-                await _original_close()
-            else:
-                await _original_close(reason=reason)
-        finally:
-            await pw.stop()
+        async def _close_with_cleanup(*, reason: str | None = None) -> None:
+            try:
+                if reason is None:
+                    await _original_close()
+                else:
+                    await _original_close(reason=reason)
+            finally:
+                await pw.stop()
 
-    context.close = _close_with_cleanup
+        context.close = _close_with_cleanup
 
     # The persistent path hands back a context, so guard it (new_page deep — see
     # launch()). A persistent context also arrives with a page already open (see
