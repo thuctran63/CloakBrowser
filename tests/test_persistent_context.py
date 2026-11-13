@@ -276,6 +276,62 @@ async def test_persistent_context_async_timezone_id_alias(_mock_bin):
     assert "timezone_id" not in call_kwargs
 
 
+@pytest.mark.asyncio
+async def test_async_persistent_prep_does_not_block_loop():
+    """Blocking launch preparation runs outside the caller's event loop."""
+    import asyncio
+    import threading
+    import time
+
+    loop_thread = threading.get_ident()
+    prep_threads = []
+
+    def slow(result):
+        def call(*_args, **_kwargs):
+            prep_threads.append(threading.get_ident())
+            time.sleep(0.1)
+            return result
+        return call
+
+    ticks = 0
+
+    async def heartbeat():
+        nonlocal ticks
+        while True:
+            await asyncio.sleep(0.01)
+            ticks += 1
+
+    pw_cm, pw, _context = _make_mock_async_pw_and_context()
+    beat = asyncio.create_task(heartbeat())
+    try:
+        with patch("playwright.async_api.async_playwright", return_value=pw_cm), \
+             patch("cloakbrowser.browser.ensure_binary", slow("/fake/chrome")), \
+             patch("cloakbrowser.browser.maybe_resolve_geoip", slow((None, None, None))), \
+             patch("cloakbrowser.browser._resolve_webrtc_args", slow(None)):
+            from cloakbrowser.browser import launch_persistent_context_async
+            await launch_persistent_context_async("/tmp/profile")
+    finally:
+        beat.cancel()
+
+    assert prep_threads and loop_thread not in prep_threads
+    assert ticks >= 20
+
+
+@pytest.mark.asyncio
+@patch("cloakbrowser.browser.ensure_binary", return_value="/fake/chrome")
+@patch("cloakbrowser.browser.maybe_resolve_geoip", return_value=(None, None, None))
+async def test_async_persistent_injected_playwright_is_caller_owned(_mock_geoip, _mock_bin):
+    """An injected Playwright driver is reused and never stopped by the wrapper."""
+    _pw_cm, pw, context = _make_mock_async_pw_and_context()
+
+    from cloakbrowser.browser import launch_persistent_context_async
+    result = await launch_persistent_context_async("/tmp/profile", playwright=pw)
+    await result.close()
+
+    context.close.assert_awaited_once()
+    pw.stop.assert_not_awaited()
+
+
 @patch("cloakbrowser.browser.ensure_binary", return_value="/fake/chrome")
 @patch("cloakbrowser.browser.maybe_resolve_geoip", return_value=(None, None, None))
 @patch("cloakbrowser.browser.seed_widevine_hint")
